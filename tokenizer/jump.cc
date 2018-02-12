@@ -1,6 +1,6 @@
-#include "benchmark.h"
+#include <cstddef>
 
-void tokenize(const char *begin, const char *end, const char **tokens)
+void tokenize(const char *begin, const char *end, const char **tokens, size_t max_tokens)
 {
     const int size = end - begin;
 

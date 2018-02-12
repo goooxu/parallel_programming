@@ -1,4 +1,4 @@
-#include "benchmark.h"
+#include <cstddef>
 
 static inline const char *find(const char *begin, const char *end)
 {
@@ -32,7 +32,7 @@ static inline const char *find(const char *begin, const char *end)
 	return end;
 }
 
-void tokenize(const char *begin, const char *end, const char **tokens)
+void tokenize(const char *begin, const char *end, const char **tokens, size_t max_tokens)
 {
 	for (const char *p = find(begin, end); p != end; p = find(p, end))
 		*tokens++ = p;

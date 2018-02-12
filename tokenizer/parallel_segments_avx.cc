@@ -1,4 +1,3 @@
-#include "benchmark.h"
 #include <omp.h>
 #include <immintrin.h>
 
@@ -37,7 +36,7 @@ static inline void tokenize_one(const char *begin, const char *end, const char *
     }
 }
 
-void tokenize(const char *begin, const char *end, const char **tokens)
+void tokenize(const char *begin, const char *end, const char **tokens, size_t max_tokens)
 {
     int blocks = omp_get_max_threads();
     int block_size = (end - begin) / blocks;

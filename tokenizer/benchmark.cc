@@ -6,15 +6,15 @@
 #include <chrono>
 #include <thread>
 #include <getopt.h>
-#include "benchmark.h"
 
 using namespace std;
 using namespace std::chrono;
-using namespace std::chrono_literals;
 
 static struct option long_options[] = {
     {"sample", required_argument, NULL, 0},
     {"epochs", required_argument, NULL, 0}};
+
+void tokenize(const char *begin, const char *end, char const **tokens, size_t max_tokens);
 
 int main(int argc, char *argv[])
 {
@@ -37,6 +37,9 @@ int main(int argc, char *argv[])
         }
     }
 
+    if (epochs < 3)
+        return -1;
+
     FILE *fp = fopen(sample_bin_file, "rb");
     fseek(fp, 0, SEEK_END);
     size_t size = ftell(fp);
@@ -58,34 +61,35 @@ int main(int argc, char *argv[])
     fp = fopen(sample_idx_file, "r");
     vector<const char *> actual_tokens;
     size_t pos;
-    while(fscanf(fp, "%zu", &pos) == 1)
+    while (fscanf(fp, "%zu", &pos) == 1)
     {
         actual_tokens.push_back(begin + pos);
     }
     fclose(fp);
 
     printf("File size: %zu, tokens: %zu\n", size, actual_tokens.size());
-    this_thread::sleep_for(2s);
+    this_thread::sleep_for(seconds(2));
 
-    vector<double> elapseds(epochs);
+    vector<float> elapseds;
     vector<const char *> tokens(actual_tokens.size());
 
     for (size_t i = 0; i < epochs; i++)
     {
         auto t1 = steady_clock::now();
-        tokenize(begin, end, &tokens[0]);
+        tokenize(begin, end, &tokens[0], actual_tokens.size());
         auto t2 = steady_clock::now();
 
-        auto timespan = duration_cast<duration<double>>(t2 - t1);
-        elapseds.push_back(timespan.count());
+        auto timespan = 1.0f * duration_cast<microseconds>(t2 - t1).count() / 1000;
+        elapseds.push_back(timespan);
 
         sort(tokens.begin(), tokens.end());
         if (!equal(actual_tokens.begin(), actual_tokens.end(), tokens.begin()))
         {
             printf("Epoch: %zu Fail\n", i);
         }
-        printf("Epoch: %zu, took %f seconds\n", i, timespan.count());
+        printf("Epoch: %zu, took %.3f milliseconds\n", i, timespan);
     }
-
-    printf("Took %f seconds totally, took %f seconds averagely\n", accumulate(elapseds.begin(), elapseds.end(), 0.0), accumulate(elapseds.begin(), elapseds.end(), 0.0) / epochs);
+    float totalElapsed = accumulate(elapseds.begin(), elapseds.end(), 0) - *max_element(elapseds.begin(), elapseds.end()) - *min_element(elapseds.begin(), elapseds.end());
+    float averageElapsed = totalElapsed / (epochs - 2);
+    printf("Took %.3f seconds totally, took %.3f seconds averagely\n", totalElapsed, averageElapsed);
 }

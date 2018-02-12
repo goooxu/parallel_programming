@@ -1,4 +1,3 @@
-#include "benchmark.h"
 #include <emmintrin.h>
 
 static inline void foo(const __m128i &pattern, const char *begin, const __m128i *mem, int offset, const char **&tokens)
@@ -17,7 +16,7 @@ static inline void foo(const __m128i &pattern, const char *begin, const __m128i 
     }
 }
 
-void tokenize(const char *begin, const char *end, const char **tokens)
+void tokenize(const char *begin, const char *end, const char **tokens, size_t max_tokens)
 {
     const __m128i pattern = _mm_set1_epi16('\n' << 8 | '\r');
     const __m128i *mem0 = reinterpret_cast<const __m128i *>(begin);
