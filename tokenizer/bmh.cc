@@ -1,39 +1,38 @@
 #include <cstddef>
+#include <cstdlib>
 
-static inline const char *find(const char *begin, const char *end)
+char *allocBuffer(size_t size)
 {
-	const char *p = begin;
-	const char *q = p + 1;
-	while (q < end)
+	return (char *)malloc(size);
+}
+
+void freeBuffer(char *buffer)
+{
+	free(buffer);
+}
+
+void tokenize(const char *buffer, size_t buffer_size, size_t *tokens, size_t token_size)
+{
+	for (size_t i = 0, j = 1; j < buffer_size;)
 	{
-		if (*q == '\n')
+		if (buffer[j] == '\n')
 		{
-			if (*p == '\r')
+			if (buffer[i] == '\r')
 			{
-				return q + 1;
+				*tokens++ = j + 1;
 			}
-			else
-			{
-				p += 2;
-				q += 2;
-			}
+			i += 1;
+			j += 1;
 		}
-		else if (*q == '\r')
+		else if (buffer[j] == '\r')
 		{
-			p += 1;
-			q += 1;
+			i += 1;
+			j += 1;
 		}
 		else
 		{
-			p += 2;
-			q += 2;
+			i += 2;
+			j += 2;
 		}
 	}
-	return end;
-}
-
-void tokenize(const char *begin, const char *end, const char **tokens, size_t max_tokens)
-{
-	for (const char *p = find(begin, end); p != end; p = find(p, end))
-		*tokens++ = p;
 }

@@ -1,42 +1,50 @@
-CPP_SOURCE_FILES = $(wildcard *.cc)
-CUDA_SOURCE_FILES = $(wildcard *.cu)
-CPP_PROGRAMS = $(filter $(FILTER), $(filter-out build benchmark, $(CPP_SOURCE_FILES:%.cc=%)))
-CUDA_PROGRAMS = $(filter $(FILTER), $(CUDA_SOURCE_FILES:%.cu=%))
+SOURCE_FILES = $(filter $(FILTER), $(filter-out build.cc benchmark.cc, $(wildcard *.c?)))
 
-CPP_OBJECTS = $(CPP_PROGRAMS:%=bin/%.o)
+CPP_PROGRAMS = $(patsubst %.cc, %, $(filter %.cc, $(SOURCE_FILES)))
+AVX2_PROGRAMS = $(filter %avx, $(CPP_PROGRAMS))
+OPENMP_PROGRAMS = $(filter openmp%, $(CPP_PROGRAMS))
+OPENACC_PROGRAMS = $(filter openacc%, $(CPP_PROGRAMS))
+NORMAL_CPP_PROGRAMS = $(filter-out $(OPENACC_PROGRAMS), $(CPP_PROGRAMS))
+CUDA_PROGRAMS = $(patsubst %.cu, %, $(filter %.cu, $(SOURCE_FILES)))
+
+AVX2_OBJECTS = $(AVX2_PROGRAMS:%=bin/%.o)
+OPENMP_OBJECTS = $(OPENMP_PROGRAMS:%=bin/%.o)
+OPENACC_OBJECTS = $(OPENACC_PROGRAMS:%=bin/%.o)
+NORMAL_CPP_OBJECTS = $(NORMAL_CPP_PROGRAMS:%=bin/%.o)
 CUDA_OBJECTS = $(CUDA_PROGRAMS:%=bin/%.o)
 
-PARALLEL_PROGRAMS = $(filter parallel%, $(CPP_PROGRAMS))
-AVX_PROGRAMS = $(filter %avx, $(CPP_PROGRAMS))
-PARALLEL_BINARIES = $(PARALLEL_PROGRAMS:%=bin/%)
-AVX_BINARIES = $(AVX_PROGRAMS:%=bin/%)
-
-CPP_BINARIES = $(CPP_PROGRAMS:%=bin/%)
+AVX2_BINARIES = $(AVX2_PROGRAMS:%=bin/%)
+OPENMP_BINARIES = $(OPENMP_PROGRAMS:%=bin/%)
+OPENACC_BINARIES = $(OPENACC_PROGRAMS:%=bin/%)
+NORMAL_CPP_BINARIES = $(NORMAL_CPP_PROGRAMS:%=bin/%)
 CUDA_BINARIES = $(CUDA_PROGRAMS:%=bin/%)
-BINARIES = $(CPP_BINARIES) $(CUDA_BINARIES)
+
+BINARIES = $(OPENACC_BINARIES) $(NORMAL_CPP_BINARIES) $(CUDA_BINARIES)
 RUN_BINARIES = $(BINARIES:%=%.run)
 
-CFLAGS = $(OPTLEVEL)
+CFLAGS =
+$(AVX2_BINARIES): CFLAGS += -mavx2
+$(OPENMP_BINARIES): CFLAGS += -fopenmp
 
 all: $(RUN_BINARIES)
 
-$(PARALLEL_BINARIES): CFLAGS += -fopenmp
-$(AVX_BINARIES): CFLAGS += -mavx2
+bin/benchmark.o $(NORMAL_CPP_OBJECTS): bin/%.o: %.cc
+	g++ -std=c++11 -O2 -Wall $(CFLAGS) -c $< -o $@
 
-bin/benchmark.o: bin/%.o: %.cc
-	g++ -Wall -std=c++11 $(CFLAGS) -c $< -o $@
-
-$(CPP_OBJECTS): bin/%.o: %.cc
-	g++ -Wall -std=c++11 $(CFLAGS) -c $< -o $@
+$(OPENACC_OBJECTS): bin/%.o: %.cc
+	pgc++ -acc -O2 -Minfo=accel -ta=tesla:cuda9.0 -c $< -o $@
 
 $(CUDA_OBJECTS): bin/%.o: %.cu
-	nvcc --compiler-options -Wall $(CFLAGS) -c $< -o $@
+	nvcc -std=c++11 -O2 -Xcompiler=-Wall -c $< -o $@
+ 
+$(NORMAL_CPP_BINARIES): %: %.o bin/benchmark.o
+	g++ -std=c++11 -O2 -Wall $(CFLAGS) bin/benchmark.o $(@:%=%.o) -o $@
 
-$(CPP_BINARIES): %: %.o bin/benchmark.o
-	g++ -Wall -std=c++11 $(CFLAGS) bin/benchmark.o $(@:%=%.o) -o $@
+$(OPENACC_BINARIES): %: %.o bin/benchmark.o
+	pgc++ -acc -O2 -ta=tesla:cuda9.0 bin/benchmark.o $(@:%=%.o) -o $@
 
 $(CUDA_BINARIES): %: %.o bin/benchmark.o
-	nvcc --compiler-options -Wall $(CFLAGS) bin/benchmark.o $(@:%=%.o) -o $@
+	nvcc -O2 -Xcompiler=-Wall bin/benchmark.o $(@:%=%.o) -o $@
 
 $(RUN_BINARIES): bin clean $(BINARIES)
 	$(@:%.run=%) --sample $(SAMPLE) --epochs $(EPOCHS)
