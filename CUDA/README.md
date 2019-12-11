@@ -14,7 +14,7 @@
 |Registers / Multiprocessor|65536|
 |Register File Capacity / Multiprocessor|256 Kbytes|
 |Constant Memory Size / Multiprocessor|64 Kbytes|
-|Shared Memory Size / Multiprocessor|64 Kbytes|
+|Shared Memory Size / Multiprocessor|96 Kbytes|
 |Max Warps / Multiprocessor|64|
 |Max Threads / Multiprocessor|2048|
 |Max Thread Blocks / Multiprocessor|32|
@@ -28,19 +28,36 @@
 
 >另外，使用的CUDA开发工具版本如下：CUDA Driver Version: 10.2, Runtime Version: 10.2
 
-我们使用如下一段CUDA代码来做为测试标准
+我们使用如下代码来测试我们程序的运行时间
 ```C++
-__global__ void sleep(int64_t waitCycles) {
-  long long int start = clock64();
-  for (;;) {
-    auto total = clock64() - start;
-    if (total >= waitCycles) {
-      break;
-    }
-  }
-}
+int hostCounters[]{INT_MAX, INT_MIN};
+
+  int *deviceCounters;
+  cudaMalloc(&deviceCounters, sizeof(int) * 2);
+  cudaMemcpy(deviceCounters, hostCounters, sizeof(int) * 2,
+             cudaMemcpyHostToDevice);
+  cudaDeviceSynchronize();
+
+  clock_t t1 = clock();
+  sleep<<<blocks, threads>>>(deviceCounters, deviceCounters + 1);
+  cudaDeviceSynchronize();
+  clock_t t2 = clock();
+
+  cudaMemcpy(hostCounters, deviceCounters, sizeof(int) * 2,
+             cudaMemcpyDeviceToHost);
+  cudaDeviceSynchronize();
+
+  printf("minimum_loop_cycles=%d, maximum_loop_cycles=%d\n", hostCounters[0],
+         hostCounters[1]);
+
+  float duration = 1000.0f * (t2 - t1) / CLOCKS_PER_SEC;
+  printf("time_elapsed=%.0fms\n", duration);
 ```
+
 按照上表中的运行频率1582 MHz来计算，可以得出大概是‭1,582,000,000‬个时钟周期等于1秒钟
 
 ### 实验1 ###
 [不同blocks和threads对运行时间的影响](experiment01.md) 
+
+### 实验2 ###
+[使用shared memory和register对运行时间的影响](experiment02.md)
