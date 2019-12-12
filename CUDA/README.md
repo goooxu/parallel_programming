@@ -30,34 +30,31 @@
 
 我们使用如下代码来测试我们程序的运行时间
 ```C++
-int hostCounters[]{INT_MAX, INT_MIN};
+int *deviceCounters;
+cudaMalloc(&deviceCounters, sizeof(int) * 2);
+warmup<<<28, 1024>>>();
+cudaDeviceSynchronize();
 
-  int *deviceCounters;
-  cudaMalloc(&deviceCounters, sizeof(int) * 2);
-  cudaMemcpy(deviceCounters, hostCounters, sizeof(int) * 2,
-             cudaMemcpyHostToDevice);
-  cudaDeviceSynchronize();
+clock_t t1 = clock();
+foo<<<blocks, threads>>>(deviceCounters, deviceCounters + 1);
+cudaDeviceSynchronize();
+clock_t t2 = clock();
 
-  clock_t t1 = clock();
-  sleep<<<blocks, threads>>>(deviceCounters, deviceCounters + 1);
-  cudaDeviceSynchronize();
-  clock_t t2 = clock();
+int hostCounters[2]{0};
+cudaMemcpy(hostCounters, deviceCounters, sizeof(int) * 2, cudaMemcpyDeviceToHost);
+cudaDeviceSynchronize();
 
-  cudaMemcpy(hostCounters, deviceCounters, sizeof(int) * 2,
-             cudaMemcpyDeviceToHost);
-  cudaDeviceSynchronize();
-
-  printf("minimum_loop_cycles=%d, maximum_loop_cycles=%d\n", hostCounters[0],
-         hostCounters[1]);
-
-  float duration = 1000.0f * (t2 - t1) / CLOCKS_PER_SEC;
-  printf("time_elapsed=%.0fms\n", duration);
+printf("counter1=%d, counter2=%d\n", hostCounters[0], hostCounters[1]);
+printf("time_elapsed=%.0fms\n", 1000.0f * (t2 - t1) / CLOCKS_PER_SEC);
 ```
 
-按照上表中的运行频率1582 MHz来计算，可以得出大概是‭1,582,000,000‬个时钟周期等于1秒钟
+为了更准确的测量时间，我们使用了一个暖场内核在被测内核之前运行
 
 ### 实验1 ###
-[不同blocks和threads对运行时间的影响](experiment01.md) 
+[块和线程数量对内核运行时间的影响](experiment01.md) 
 
 ### 实验2 ###
-[使用shared memory和register对运行时间的影响](experiment02.md)
+[共享内存和寄存器数量对内核运行时间的影响](experiment02.md)
+
+### 实验3 ###
+[延迟隐藏](experiment03.md)
