@@ -1,6 +1,8 @@
 #include <chrono>
 #include <cstddef>
+#include <cstdio>
 #include <cstdlib>
+#include <omp.h>
 
 using namespace std::chrono;
 
@@ -12,6 +14,12 @@ void test(const char *buffer, size_t buffer_size, size_t *breaks,
           size_t max_breaks_count, steady_clock::time_point &start,
           steady_clock::time_point &stop) {
   start = steady_clock::now();
+
+#pragma omp parallel for
+  for (size_t i = 0; i < 1000; i++) {
+    if (i == 0)
+      printf("Total CPU thread count is %d\n", omp_get_num_threads());
+  }
 
   size_t token_index = 0;
 
