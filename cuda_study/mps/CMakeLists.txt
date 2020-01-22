@@ -5,8 +5,8 @@ find_package(CUDA REQUIRED)
 find_package(OpenMP REQUIRED)
 find_package(MPI REQUIRED)
 
-set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -O2 -Wall ${OpenMP_CXX_FLAGS}")
-set(CMAKE_CUDA_FLAGS "${CMAKE_CUDA_FLAGS} -O2 -Xcompiler -Wall -arch sm_${SM} -gencode arch=compute_${SM},code=sm_${SM} ${OpenMP_CUDA_FLAGS} --default-stream per-thread")
+set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -DCUDA_API_PER_THREAD_DEFAULT_STREAM=1 -O2 -Wall ${OpenMP_CXX_FLAGS}")
+set(CMAKE_CUDA_FLAGS "${CMAKE_CUDA_FLAGS} -O2 -Xcompiler -Wall -arch sm_${SM} -gencode arch=compute_${SM},code=sm_${SM} ${OpenMP_CUDA_FLAGS}")
 set(CMAKE_EXE_LINKER_FLAGS "${CMAKE_EXE_LINKER_FLAGS} ${OpenMP_EXE_LINKER_FLAGS}")
 
 set(CMAKE_RUNTIME_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR}/bin)

@@ -6,8 +6,7 @@
 using namespace std;
 using namespace std::chrono;
 
-void test(const char *d_buffer, size_t buffer_size, size_t buffer_offset,
-          size_t *d_separators, int *d_index,
+void test(const char *d_buffer, size_t buffer_size, int *d_counter,
           steady_clock::time_point &kernel_launch_start,
           steady_clock::time_point &kernel_launch_end,
           steady_clock::time_point &kernel_execution_end) {
@@ -22,11 +21,6 @@ void test(const char *d_buffer, size_t buffer_size, size_t buffer_offset,
          "threads, %zu kernels per thread\n",
          kernels, grid_dim, block_dim, num_threads, kernels / num_threads);
 
-  CUcontext ctxs[num_threads];
-
-#pragma omp parallel num_threads(num_threads)
-  checkCudaErrors(cuCtxCreate(&ctxs[omp_get_thread_num()], 0, 0));
-
   kernel_launch_start = steady_clock::now();
 
 #pragma omp parallel num_threads(num_threads)
@@ -36,16 +30,12 @@ void test(const char *d_buffer, size_t buffer_size, size_t buffer_offset,
 
     for (size_t j = 0; j < kernels_per_thread; j++) {
       const size_t k = i * kernels_per_thread + j;
-      size_t offset = k * buffer_size / kernels;
-      kernelFunc<<<grid_dim, block_dim>>>(
-          d_buffer + offset, buffer_offset + offset, d_separators, d_index);
+      const size_t offset = k * buffer_size / kernels;
+      kernelFunc<<<grid_dim, block_dim>>>(d_buffer + offset, d_counter);
     }
   }
 
   kernel_launch_end = steady_clock::now();
   checkCudaErrors(cudaDeviceSynchronize());
   kernel_execution_end = steady_clock::now();
-
-#pragma omp parallel num_threads(num_threads)
-  checkCudaErrors(cuCtxDestroy(ctxs[omp_get_thread_num()]));
 }

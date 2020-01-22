@@ -1,7 +1,6 @@
 #include "helper_cuda.h"
 #include <chrono>
 #include <cstdio>
-#include <cstdlib>
 #include <mpi.h>
 #include <numeric>
 #include <vector>
@@ -9,22 +8,18 @@
 using namespace std;
 using namespace std::chrono;
 
-void test(const char *d_buffer, size_t buffer_size, size_t offset,
-          size_t *d_separators, int *d_index,
+void test(const char *d_buffer, size_t buffer_size, int *d_counter,
           steady_clock::time_point &kernel_launch_start,
           steady_clock::time_point &kernel_launch_end,
           steady_clock::time_point &kernel_execution_end);
 
 int main(int argc, char *argv[]) {
   const char *input_file_name = argv[1];
-  size_t max_separator_count = strtoull(argv[2], nullptr, 10);
 
   MPI_Init(nullptr, nullptr);
 
-  int world_size;
+  int world_size, world_rank;
   MPI_Comm_size(MPI_COMM_WORLD, &world_size);
-
-  int world_rank;
   MPI_Comm_rank(MPI_COMM_WORLD, &world_rank);
 
   FILE *fp = fopen(input_file_name, "rb");
@@ -36,6 +31,8 @@ int main(int argc, char *argv[]) {
 
   fseek(fp, proc_buffer_offset, SEEK_SET);
 
+  cuInit(0);
+
   char *buffer;
   checkCudaErrors(
       cudaMallocHost(reinterpret_cast<void **>(&buffer), proc_buffer_size));
@@ -46,68 +43,59 @@ int main(int argc, char *argv[]) {
   }
   fclose(fp);
 
-  vector<size_t> separators(max_separator_count, 0);
-
   char *d_buffer;
-  size_t *d_separators;
-  int *d_index;
+  int *d_counter;
+  int counter;
 
   checkCudaErrors(
       cudaMalloc(reinterpret_cast<void **>(&d_buffer), proc_buffer_size + 1));
-  checkCudaErrors(cudaMalloc(reinterpret_cast<void **>(&d_separators),
-                             separators.size() * sizeof(size_t)));
-  checkCudaErrors(cudaMalloc(reinterpret_cast<void **>(&d_index), sizeof(int)));
+  checkCudaErrors(
+      cudaMalloc(reinterpret_cast<void **>(&d_counter), sizeof(int)));
 
   checkCudaErrors(
       cudaMemcpy(d_buffer, buffer, proc_buffer_size, cudaMemcpyHostToDevice));
   checkCudaErrors(cudaMemset(d_buffer + proc_buffer_size, 0, 1));
-  checkCudaErrors(cudaMemset(d_index, 0, sizeof(int)));
+  checkCudaErrors(cudaMemset(d_counter, 0, sizeof(int)));
 
   steady_clock::time_point kernel_launch_start, kernel_launch_end,
       kernel_execution_end;
-  test(d_buffer, proc_buffer_size, proc_buffer_offset, d_separators, d_index,
-       kernel_launch_start, kernel_launch_end, kernel_execution_end);
+  test(d_buffer, proc_buffer_size, d_counter, kernel_launch_start,
+       kernel_launch_end, kernel_execution_end);
 
-  checkCudaErrors(cudaMemcpy(separators.data(), d_separators,
-                             separators.size() * sizeof(size_t),
-                             cudaMemcpyDeviceToHost));
+  checkCudaErrors(
+      cudaMemcpy(&counter, d_counter, sizeof(int), cudaMemcpyDeviceToHost));
   checkCudaErrors(cudaFree(d_buffer));
-  checkCudaErrors(cudaFree(d_separators));
-  checkCudaErrors(cudaFree(d_index));
+  checkCudaErrors(cudaFree(d_counter));
   checkCudaErrors(cudaDeviceSynchronize());
 
   checkCudaErrors(cudaFreeHost(buffer));
 
-  size_t total =
-      accumulate(separators.begin(), separators.end(), static_cast<size_t>(0));
-
   if (world_rank == 0) {
     for (int i = 1; i < world_size; i++) {
-      size_t peer_total;
-      MPI_Recv(&peer_total, 1, MPI_UNSIGNED_LONG_LONG, i, 0, MPI_COMM_WORLD,
+      int peer_counter;
+      MPI_Recv(&peer_counter, 1, MPI_INT, i, 0, MPI_COMM_WORLD,
                MPI_STATUS_IGNORE);
-      total += peer_total;
+      counter += peer_counter;
     }
-    printf("Sum of separators: %zu\n", total);
+    printf("Number of separators: %d\n", counter);
   } else {
-    MPI_Send(&total, 1, MPI_UNSIGNED_LONG_LONG, 0, 0, MPI_COMM_WORLD);
+    MPI_Send(&counter, 1, MPI_INT, 0, 0, MPI_COMM_WORLD);
   }
 
+  MPI_Finalize();
+
   printf(
-      "[Processor %d] Kernel launch took %.3f milliseconds\n", world_rank,
+      "Kernel launch took %.3f milliseconds\n",
       1.0f *
           duration_cast<microseconds>(kernel_launch_end - kernel_launch_start)
               .count() /
           1000);
-  printf("[Processor %d] Kernel launch and execution took %.3f milliseconds\n",
-         world_rank,
+  printf("Kernel launch and execution took %.3f milliseconds\n",
          1.0f *
              duration_cast<microseconds>(kernel_execution_end -
                                          kernel_launch_start)
                  .count() /
              1000);
-
-  MPI_Finalize();
 
   return 0;
 }

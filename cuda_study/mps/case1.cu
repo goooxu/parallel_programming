@@ -6,8 +6,7 @@
 using namespace std;
 using namespace std::chrono;
 
-void test(const char *d_buffer, size_t buffer_size, size_t buffer_offset,
-          size_t *d_separators, int *d_index,
+void test(const char *d_buffer, size_t buffer_size, int *d_counter,
           steady_clock::time_point &kernel_launch_start,
           steady_clock::time_point &kernel_launch_end,
           steady_clock::time_point &kernel_execution_end) {
@@ -22,8 +21,7 @@ void test(const char *d_buffer, size_t buffer_size, size_t buffer_offset,
   kernel_launch_start = steady_clock::now();
   for (size_t k = 0; k < kernels; k++) {
     size_t offset = k * buffer_size / kernels;
-    kernelFunc<<<grid_dim, block_dim>>>(
-        d_buffer + offset, buffer_offset + offset, d_separators, d_index);
+    kernelFunc<<<grid_dim, block_dim>>>(d_buffer + offset, d_counter);
   }
   kernel_launch_end = steady_clock::now();
   checkCudaErrors(cudaDeviceSynchronize());
